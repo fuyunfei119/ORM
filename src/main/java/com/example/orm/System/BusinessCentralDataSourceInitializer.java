@@ -7,20 +7,15 @@ import org.springframework.boot.autoconfigure.sql.init.SqlInitializationProperti
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.jdbc.datasource.init.DataSourceInitializer;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 import javax.sql.DataSource;
 import java.io.*;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -30,9 +25,12 @@ public class BusinessCentralDataSourceInitializer extends SqlDataSourceScriptDat
 
     @Autowired
     private ResourceLoader resourceLoader;
+    List<String> newSchemaLocatonCode = new ArrayList<>();
 
     public BusinessCentralDataSourceInitializer(DataSource dataSource, SqlInitializationProperties properties) {
         super(dataSource, properties);
+        newSchemaLocatonCode.add("classpath:/sql");
+        properties.setSchemaLocations(newSchemaLocatonCode);
     }
 
 
@@ -60,36 +58,49 @@ public class BusinessCentralDataSourceInitializer extends SqlDataSourceScriptDat
 
             File file = new File(resourcePath + "sql/" + tableName + ".sql");
             try {
-                boolean newFile = file.createNewFile();
                 if (file.exists()) {
-                    FileWriter fileWriter = new FileWriter(file);
-                    StringBuilder stringBuilder = new StringBuilder();
-                    stringBuilder
-                            .append("DROP TABLE IF EXISTS Customer;")
-                            .append(System.lineSeparator())
-                            .append("CREATE TABLE IF NOT EXISTS Customer (")
-                            .append(System.lineSeparator());
+                    if (file.delete()) {
+                        boolean newFile = file.createNewFile();
+                        if (file.exists()) {
+                            FileWriter fileWriter = new FileWriter(file);
+                            StringBuilder stringBuilder = new StringBuilder();
+                            stringBuilder
+                                    .append("DROP TABLE IF EXISTS " + tableName + ";" )
+                                    .append(System.lineSeparator())
+                                    .append("CREATE TABLE IF NOT EXISTS " + tableName + " (")
+                                    .append(System.lineSeparator());
 
-                    for (String field : fields) {
-                        stringBuilder.append(field);
+                            for (String field : fields) {
+                                stringBuilder.append(field);
+                            }
+
+                            int lastIndexOf = stringBuilder.lastIndexOf(",");
+                            stringBuilder.deleteCharAt(lastIndexOf);
+                            stringBuilder
+                                    .append(System.lineSeparator())
+                                    .append(");");
+                            fileWriter.write(stringBuilder.toString());
+                            fileWriter.close();
+                        }
                     }
-                    System.out.println(stringBuilder);
-                    int lastIndexOf = stringBuilder.lastIndexOf(",");
-                    stringBuilder.deleteCharAt(lastIndexOf);
-                    System.out.println(stringBuilder);
-                    stringBuilder
-                            .append(System.lineSeparator())
-                            .append(");");
-                    fileWriter.write(stringBuilder.toString());
-                    fileWriter.close();
                 }
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
 
             Resource resource = new FileSystemResource(file);
-            populator.addScript(resource);
+            resources.add(resource);
+        }
 
+        boolean HasAtLeastOneScript = false;
+        for (Resource resource : resources) {
+            if (HasAtLeastOneScript) {
+                populator.addScript(resource);
+                break;
+            }
+            populator.setScripts(resource);
+            HasAtLeastOneScript = true;
         }
     }
 }

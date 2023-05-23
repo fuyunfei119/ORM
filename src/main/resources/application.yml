@@ -9,4 +9,4 @@ spring:
     init:
       mode: always
       platform: mysql
-      schema-locations: classpath:sql/Init.sql
+      schema-locations: classpath:sql/
